@@ -45,7 +45,7 @@ type StorageDeviceDiscovery struct {
 type MachineConfig struct {
 	// Boolean to create the MachinConfig objects
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=4,xDescriptors={"urn:alm:descriptor:com.tectonic.ui:booleanSwitch"}
-	// +kubebuilder:default:=true
+	// +kubebuilder:default:=false
 	Create bool `json:"create,omitempty"`
 	// Labels to be used for the machineconfigpool
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=5,xDescriptors={"urn:alm:descriptor:com.tectonic.ui:fieldDependency:mco_config.create:true"}
@@ -55,7 +55,7 @@ type MachineConfig struct {
 type IBMSpectrumCluster struct {
 	// Boolean to create the CNSA cluster object
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=6,xDescriptors={"urn:alm:descriptor:com.tectonic.ui:booleanSwitch"}
-	// +kubebuilder:default:=true
+	// +kubebuilder:default:=false
 	Create bool `json:"create,omitempty"`
 	// Nodes with this label will be part of the cluster, must have at least 3 nodes with this
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=7,xDescriptors={"urn:alm:descriptor:com.tectonic.ui:fieldDependency:ibm_cnsa_cluster.create:true"}
