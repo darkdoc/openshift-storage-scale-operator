@@ -76,7 +76,8 @@ func NewFusionAccessReconciler(
 //+kubebuilder:rbac:groups=fusion.storage.openshift.io,resources=fusionaccesses/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fusion.storage.openshift.io,resources=fusionaccesses/finalizers,verbs=update
 
-//+kubebuilder:rbac:groups="",namespace=openshift-fusion-access,resources=secrets,verbs=get;list;watch
+// Operator needs to create kernel module
+//+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules,verbs=get;list;watch;create;update;patch;delete
 
 // Below rules are inserted via `make rbac-generate` automatically
 // IBM_RBAC_MARKER_START
