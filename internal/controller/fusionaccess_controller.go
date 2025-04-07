@@ -62,6 +62,8 @@ type FusionAccessReconciler struct {
 
 // Operator needs to create some machine configs
 //+kubebuilder:rbac:groups=machineconfiguration.openshift.io,resources=machineconfigs,verbs=get;list;watch;create;update;patch;delete
+// Operator needs to create kernel module
+//+kubebuilder:rbac:groups=kmm.sigs.x-k8s.io,resources=modules,verbs=get;list;watch;create;update;patch;delete
 
 // Below rules are inserted via `make rbac-generate` automatically
 // IBM_RBAC_MARKER_START
@@ -291,6 +293,7 @@ func (r *FusionAccessReconciler) Reconcile(
 	// 		return ctrl.Result{}, err
 	// 	}
 	// }
+	//+kubebuilder:rbac:groups=modules.kmm.sigs.x-k8s.io,resources=modules,verbs=get;list;watch;create;update;patch;delete
 
 	// Create machineconfig to enable kernel modules if needed
 	if fusionaccess.Spec.MachineConfig.Create {
