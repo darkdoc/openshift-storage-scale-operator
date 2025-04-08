@@ -49,7 +49,26 @@ var _ = Describe("FusionAccess Controller", func() {
 		namespace         = newNamespace("openshift-fusion-access-operator")
 		version           = newOCPVersion(oscinitVersion)
 		clusterConsole    = &operatorv1.Console{ObjectMeta: metav1.ObjectMeta{Name: "cluster"}}
+		clusterPullSecret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pull-secret",
+				Namespace: "openshift-config",
+			},
+			Data: map[string][]byte{".dockerconfigjson": []byte(`
+			{
+  				"auths": {
+					"quay.io/repo1": {
+						"auth": "authkey",
+						"email": ""
+    				},
+					"quay.io/repo2": {
+						"auth": "authkey",
+						"email": ""
+    				}
+				}
+			}`)}}
 	)
+
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -65,8 +84,8 @@ var _ = Describe("FusionAccess Controller", func() {
 			os.Setenv("DEPLOYMENT_NAMESPACE", "openshift-fusion-access-operator")
 			fakeClientBuilder = fake.NewClientBuilder().
 				WithScheme(scheme).
-				WithRuntimeObjects(version, namespace, clusterConsole).
-				WithStatusSubresource(&fusionv1alpha.FusionAccess{})
+				WithRuntimeObjects(version, namespace, clusterConsole, clusterPullSecret).
+				WithStatusSubresource(&scalev1alpha.StorageScale{})
 
 		})
 
