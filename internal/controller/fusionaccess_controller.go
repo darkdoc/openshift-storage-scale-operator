@@ -386,7 +386,7 @@ func (r *FusionAccessReconciler) Reconcile(
 
 	log.Log.Info("Creating kernel module resources")
 
-	if err := kernelmodule.CreateOrUpdateKMMResources(ctx, r.Client); err != nil {
+	if err := kernelmodule.CreateOrUpdateKMMResources(ctx, r.Client, secretstring); err != nil {
 		return ctrl.Result{}, err
 	}
 
