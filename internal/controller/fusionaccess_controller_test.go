@@ -85,7 +85,7 @@ var _ = Describe("FusionAccess Controller", func() {
 			fakeClientBuilder = fake.NewClientBuilder().
 				WithScheme(scheme).
 				WithRuntimeObjects(version, namespace, clusterConsole, clusterPullSecret).
-				WithStatusSubresource(&scalev1alpha.StorageScale{})
+				WithStatusSubresource(&fusionv1alpha.FusionAccess{})
 
 		})
 
