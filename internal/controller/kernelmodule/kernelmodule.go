@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/openshift-storage-scale/openshift-storage-scale-operator/internal/utils"
+	"github.com/openshift-storage-scale/openshift-fusion-access-operator/internal/utils"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 
