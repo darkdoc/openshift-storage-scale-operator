@@ -146,6 +146,11 @@ func NewKMMModule(namespace, ibmScaleImage string) *kmmv1beta1.Module {
 				Container: kmmv1beta1.ModuleLoaderContainerSpec{
 					Modprobe: kmmv1beta1.ModprobeSpec{
 						ModuleName: "mmfslinux",
+						ModulesLoadingOrder: []string{
+							"mmfslinux",
+							"mmfs26",
+							"tracedev",
+						},
 					},
 					KernelMappings: []kmmv1beta1.KernelMapping{
 						kmmv1beta1.KernelMapping{
