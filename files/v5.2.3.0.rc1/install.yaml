@@ -10666,7 +10666,7 @@ data:
     kind: ClusterManagerConfig
     images:
       coreECE: quay.io/openshift-storage-scale/erasure-code/ibm-spectrum-scale-daemon:5.2.3.0.rc1
-      coreDME: quay.io/openshift-storage-scale/data-management/ibm-spectrum-scale-daemon:5.2.3.0.rc1
+      coreDME: quay.io/openshift-storage-scale/data-management/ibm-spectrum-scale-daemon:workaround
       coreDAE: quay.io/openshift-storage-scale/data-access/ibm-spectrum-scale-daemon:5.2.3.0.rc1
       coreInit: quay.io/openshift-storage-scale/ibm-spectrum-scale-core-init:5.2.3.0.rc1
       gui: quay.io/openshift-storage-scale/ibm-spectrum-scale-gui:5.2.3.0.rc1
