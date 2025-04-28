@@ -238,60 +238,6 @@ github.com/openshift/client-go/config/clientset/versioned
 github.com/openshift/client-go/config/clientset/versioned/scheme
 github.com/openshift/client-go/config/clientset/versioned/typed/config/v1
 github.com/openshift/client-go/config/clientset/versioned/typed/config/v1alpha1
-github.com/openshift/client-go/config/informers/externalversions
-github.com/openshift/client-go/config/informers/externalversions/config
-github.com/openshift/client-go/config/informers/externalversions/config/v1
-github.com/openshift/client-go/config/informers/externalversions/config/v1alpha1
-github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
-github.com/openshift/client-go/config/listers/config/v1
-github.com/openshift/client-go/config/listers/config/v1alpha1
-github.com/openshift/client-go/image/applyconfigurations/image/v1
-github.com/openshift/client-go/image/applyconfigurations/internal
-github.com/openshift/client-go/image/clientset/versioned
-github.com/openshift/client-go/image/clientset/versioned/scheme
-github.com/openshift/client-go/image/clientset/versioned/typed/image/v1
-github.com/openshift/client-go/machine/applyconfigurations/internal
-github.com/openshift/client-go/machine/applyconfigurations/machine/v1
-github.com/openshift/client-go/machine/applyconfigurations/machine/v1beta1
-github.com/openshift/client-go/machine/clientset/versioned
-github.com/openshift/client-go/machine/clientset/versioned/scheme
-github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1
-github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1
-github.com/openshift/client-go/machine/informers/externalversions
-github.com/openshift/client-go/machine/informers/externalversions/internalinterfaces
-github.com/openshift/client-go/machine/informers/externalversions/machine
-github.com/openshift/client-go/machine/informers/externalversions/machine/v1
-github.com/openshift/client-go/machine/informers/externalversions/machine/v1beta1
-github.com/openshift/client-go/machine/listers/machine/v1
-github.com/openshift/client-go/machine/listers/machine/v1beta1
-github.com/openshift/client-go/machineconfiguration/applyconfigurations/internal
-github.com/openshift/client-go/machineconfiguration/applyconfigurations/machineconfiguration/v1
-github.com/openshift/client-go/machineconfiguration/applyconfigurations/machineconfiguration/v1alpha1
-github.com/openshift/client-go/machineconfiguration/clientset/versioned
-github.com/openshift/client-go/machineconfiguration/clientset/versioned/scheme
-github.com/openshift/client-go/machineconfiguration/clientset/versioned/typed/machineconfiguration/v1
-github.com/openshift/client-go/machineconfiguration/clientset/versioned/typed/machineconfiguration/v1alpha1
-github.com/openshift/client-go/machineconfiguration/informers/externalversions
-github.com/openshift/client-go/machineconfiguration/informers/externalversions/internalinterfaces
-github.com/openshift/client-go/machineconfiguration/informers/externalversions/machineconfiguration
-github.com/openshift/client-go/machineconfiguration/informers/externalversions/machineconfiguration/v1
-github.com/openshift/client-go/machineconfiguration/informers/externalversions/machineconfiguration/v1alpha1
-github.com/openshift/client-go/machineconfiguration/listers/machineconfiguration/v1
-github.com/openshift/client-go/machineconfiguration/listers/machineconfiguration/v1alpha1
-github.com/openshift/client-go/operator/applyconfigurations/internal
-github.com/openshift/client-go/operator/applyconfigurations/operator/v1
-github.com/openshift/client-go/operator/applyconfigurations/operator/v1alpha1
-github.com/openshift/client-go/operator/clientset/versioned
-github.com/openshift/client-go/operator/clientset/versioned/scheme
-github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1
-github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1alpha1
-github.com/openshift/client-go/operator/informers/externalversions
-github.com/openshift/client-go/operator/informers/externalversions/internalinterfaces
-github.com/openshift/client-go/operator/informers/externalversions/operator
-github.com/openshift/client-go/operator/informers/externalversions/operator/v1
-github.com/openshift/client-go/operator/informers/externalversions/operator/v1alpha1
-github.com/openshift/client-go/operator/listers/operator/v1
-github.com/openshift/client-go/operator/listers/operator/v1alpha1
 # github.com/openshift/library-go v0.0.0-20250325143551-78a24021cf40
 ## explicit; go 1.23.0
 github.com/openshift/library-go/pkg/operator/resource/resourceread
@@ -329,9 +275,8 @@ github.com/prometheus/procfs/internal/util
 ## explicit; go 1.23.0
 github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta1
 github.com/rh-ecosystem-edge/kernel-module-management/api/v1beta2
-# github.com/robfig/cron v1.2.0
-## explicit
-github.com/robfig/cron
+# github.com/rogpeppe/go-internal v1.13.1
+## explicit; go 1.22
 # github.com/spf13/cobra v1.9.1
 ## explicit; go 1.15
 github.com/spf13/cobra
@@ -345,16 +290,6 @@ github.com/stretchr/testify/assert/yaml
 # github.com/x448/float16 v0.8.4
 ## explicit; go 1.11
 github.com/x448/float16
-# go.opentelemetry.io/otel v1.33.0
-## explicit; go 1.22.0
-go.opentelemetry.io/otel/attribute
-go.opentelemetry.io/otel/codes
-go.opentelemetry.io/otel/internal
-go.opentelemetry.io/otel/internal/attribute
-# go.opentelemetry.io/otel/trace v1.33.0
-## explicit; go 1.22.0
-go.opentelemetry.io/otel/trace
-go.opentelemetry.io/otel/trace/embedded
 # go.uber.org/multierr v1.11.0
 ## explicit; go 1.19
 go.uber.org/multierr
@@ -937,13 +872,6 @@ k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/retry
 k8s.io/client-go/util/watchlist
 k8s.io/client-go/util/workqueue
-# k8s.io/component-base v0.32.3
-## explicit; go 1.23.0
-k8s.io/component-base/cli/flag
-k8s.io/component-base/metrics
-k8s.io/component-base/metrics/legacyregistry
-k8s.io/component-base/metrics/prometheusextension
-k8s.io/component-base/version
 # k8s.io/component-helpers v0.32.3
 ## explicit; go 1.23.0
 k8s.io/component-helpers/scheduling/corev1
