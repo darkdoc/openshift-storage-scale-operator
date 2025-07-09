@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 
 	mfc "github.com/manifestival/controller-runtime-client"
 	"github.com/manifestival/manifestival"
@@ -440,6 +441,16 @@ func (r *FusionAccessReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&fusionv1alpha1.FusionAccess{}).
 		Watches(
 			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.getRegistrySecretSelector),
+			isItOurRegistrySecret(),
+		).
+		Watches(
+			&corev1.ConfigMap{},
+			handler.EnqueueRequestsFromMapFunc(r.getKMMConfigmapSelector),
+			isItOurKMMConfigMap(),
+		).
+		Watches(
+			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.getPullSecretSelector),
 			isItOurPullSecret(),
 		).
@@ -472,6 +483,114 @@ func (r *FusionAccessReconciler) getPullSecretSelector(
 		NamespacedName: client.ObjectKeyFromObject(&fusionAccessList.Items[0]),
 	}
 	log.Log.Info("Enqueueing request for", "request", req)
+	return []reconcile.Request{req}
+}
+
+func (r *FusionAccessReconciler) getKMMConfigmapSelector(
+	ctx context.Context,
+	obj client.Object,
+) []reconcile.Request {
+	ns, err := utils.GetDeploymentNamespace()
+	if err != nil {
+		return []reconcile.Request{}
+	}
+
+	// Check if this is the KMM config map we care about
+	cm, ok := obj.(*corev1.ConfigMap)
+	if !ok {
+		return []reconcile.Request{}
+	}
+
+	if cm.Name != kernelmodule.KMMImageConfigMapName || cm.Namespace != ns {
+		return []reconcile.Request{}
+	}
+
+	// Find FusionAccess instances in the namespace
+	fusionAccessList := &fusionv1alpha1.FusionAccessList{}
+	if err := r.List(ctx, fusionAccessList, client.InNamespace(ns)); err != nil {
+		log.Log.Error(err, "Failed to list FusionAccess instances in getKMMConfigmapSelector")
+		return []reconcile.Request{}
+	}
+
+	if len(fusionAccessList.Items) == 0 {
+		log.Log.Info("No FusionAccess instance found, skipping KMM configmap reconcile")
+		return []reconcile.Request{}
+	}
+
+	// We enforce a single fusionAccess instance via webhooks so we can take the first
+	req := reconcile.Request{
+		NamespacedName: client.ObjectKeyFromObject(&fusionAccessList.Items[0]),
+	}
+	log.Log.Info("Enqueueing request for KMM configmap change", "request", req)
+	return []reconcile.Request{req}
+}
+
+func (r *FusionAccessReconciler) getRegistrySecretSelector(
+	ctx context.Context,
+	obj client.Object,
+) []reconcile.Request {
+	ns, err := utils.GetDeploymentNamespace()
+	if err != nil {
+		return []reconcile.Request{}
+	}
+
+	// Check if this is a secret we care about
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		return []reconcile.Request{}
+	}
+
+	if secret.Namespace != ns {
+		return []reconcile.Request{}
+	}
+
+	// Check if this is a secret that might be used by KMM
+	isRelevantSecret := false
+
+	// First check if this is the IBM entitlement secret
+	if secret.Name == IBMENTITLEMENTNAME {
+		isRelevantSecret = true
+	} else {
+		// Check if this is a registry secret mentioned in the KMM config
+		kmmConfig, err := kernelmodule.GetKMMImageConfig(ctx, r.Client, ns)
+		if err != nil {
+			log.Log.Error(err, "Failed to get KMM config in getRegistrySecretSelector")
+			return []reconcile.Request{}
+		}
+
+		// Check if this is the registry secret from config
+		if kmmConfig.RegistrySecretName != "" && secret.Name == kmmConfig.RegistrySecretName {
+			isRelevantSecret = true
+		} else if kmmConfig.RegistrySecretName == "" {
+			// Check if this is a builder dockercfg secret
+			builderSecretName, err := kernelmodule.GetServiceAccountDockercfgSecretName(ctx, r.Client, ns, "builder")
+			if err == nil && secret.Name == builderSecretName {
+				isRelevantSecret = true
+			}
+		}
+	}
+
+	if !isRelevantSecret {
+		return []reconcile.Request{}
+	}
+
+	// Find FusionAccess instances in the namespace
+	fusionAccessList := &fusionv1alpha1.FusionAccessList{}
+	if err := r.List(ctx, fusionAccessList, client.InNamespace(ns)); err != nil {
+		log.Log.Error(err, "Failed to list FusionAccess instances in getRegistrySecretSelector")
+		return []reconcile.Request{}
+	}
+
+	if len(fusionAccessList.Items) == 0 {
+		log.Log.Info("No FusionAccess instance found, skipping registry secret reconcile")
+		return []reconcile.Request{}
+	}
+
+	// We enforce a single fusionAccess instance via webhooks so we can take the first
+	req := reconcile.Request{
+		NamespacedName: client.ObjectKeyFromObject(&fusionAccessList.Items[0]),
+	}
+	log.Log.Info("Enqueueing request for registry secret change", "request", req, "secretName", secret.Name)
 	return []reconcile.Request{req}
 }
 
@@ -563,6 +682,137 @@ func checkPullSecret(secret *corev1.Secret, ns string) bool {
 		return false
 	}
 	return true
+}
+
+// isItOurKMMConfigMap returns true for Create or changed Update events on the KMM config map
+func isItOurKMMConfigMap() builder.WatchesOption {
+	return builder.WithPredicates(predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			ns, err := utils.GetDeploymentNamespace()
+			if err != nil {
+				return false
+			}
+			newConfigMap, ok := e.Object.DeepCopyObject().(*corev1.ConfigMap)
+			if !ok {
+				return false
+			}
+			return checkKMMConfigMap(newConfigMap, ns)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			ns, err := utils.GetDeploymentNamespace()
+			if err != nil {
+				return false
+			}
+			newConfigMap, ok := e.ObjectNew.DeepCopyObject().(*corev1.ConfigMap)
+			if !ok {
+				return false
+			}
+			oldConfigMap, ok := e.ObjectOld.DeepCopyObject().(*corev1.ConfigMap)
+			if !ok {
+				return true
+			}
+			if !checkKMMConfigMap(newConfigMap, ns) {
+				return false
+			}
+			return !reflect.DeepEqual(oldConfigMap.Data, newConfigMap.Data)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			ns, err := utils.GetDeploymentNamespace()
+			if err != nil {
+				return false
+			}
+			deletedConfigMap, ok := e.Object.DeepCopyObject().(*corev1.ConfigMap)
+			if !ok {
+				return false
+			}
+			return checkKMMConfigMap(deletedConfigMap, ns)
+		},
+		GenericFunc: func(_ event.GenericEvent) bool {
+			return false
+		},
+	})
+}
+
+// isItOurRegistrySecret returns true for Create or changed Update events on registry-related secrets
+func isItOurRegistrySecret() builder.WatchesOption {
+	return builder.WithPredicates(predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			ns, err := utils.GetDeploymentNamespace()
+			if err != nil {
+				return false
+			}
+			newSecret, ok := e.Object.DeepCopyObject().(*corev1.Secret)
+			if !ok {
+				return false
+			}
+			return checkRegistrySecret(newSecret, ns)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			ns, err := utils.GetDeploymentNamespace()
+			if err != nil {
+				return false
+			}
+			newSecret, ok := e.ObjectNew.DeepCopyObject().(*corev1.Secret)
+			if !ok {
+				return false
+			}
+			oldSecret, ok := e.ObjectOld.DeepCopyObject().(*corev1.Secret)
+			if !ok {
+				return true
+			}
+			if !checkRegistrySecret(newSecret, ns) {
+				return false
+			}
+			return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			ns, err := utils.GetDeploymentNamespace()
+			if err != nil {
+				return false
+			}
+			deletedSecret, ok := e.Object.DeepCopyObject().(*corev1.Secret)
+			if !ok {
+				return false
+			}
+			return checkRegistrySecret(deletedSecret, ns)
+		},
+		GenericFunc: func(_ event.GenericEvent) bool {
+			return false
+		},
+	})
+}
+
+func checkKMMConfigMap(cm *corev1.ConfigMap, ns string) bool {
+	if cm.Name != kernelmodule.KMMImageConfigMapName {
+		return false
+	}
+	if cm.Namespace != ns {
+		return false
+	}
+	return true
+}
+
+func checkRegistrySecret(secret *corev1.Secret, ns string) bool {
+	if secret.Namespace != ns {
+		return false
+	}
+
+	// Always watch IBM entitlement secret
+	if secret.Name == IBMENTITLEMENTNAME {
+		return true
+	}
+
+	// Check if it's a builder dockercfg secret
+	builderSecretPattern := `^builder-dockercfg-.*$`
+	matched, _ := regexp.MatchString(builderSecretPattern, secret.Name)
+	if matched {
+		return true
+	}
+
+	// Note: We can't easily check for the registry secret from config here without
+	// making a client call, so we'll be conservative and watch more secrets than necessary.
+	// The selector function will filter them properly.
+	return secret.Type == corev1.SecretTypeDockerConfigJson || secret.Type == corev1.SecretTypeDockercfg
 }
 
 // func (r *FusionAccessReconciler) finalizeFusionAccess(reqLogger logr.Logger, sc *v1alpha1.FusionAccess) error {

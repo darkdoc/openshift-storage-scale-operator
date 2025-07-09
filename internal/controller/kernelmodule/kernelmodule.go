@@ -220,7 +220,8 @@ type KMMImageConfig struct {
 	RegistrySecretName string
 }
 
-func getKMMImageConfig(ctx context.Context, cl client.Client, namespace string) (KMMImageConfig, error) {
+// GetKMMImageConfig gets the KMM image configuration from the configmap
+func GetKMMImageConfig(ctx context.Context, cl client.Client, namespace string) (KMMImageConfig, error) {
 	config := KMMImageConfig{
 		RegistryURL:        "image-registry.openshift-image-registry.svc:5000",
 		Repo:               fmt.Sprintf("%s/gpfs_compat_kmod", namespace),
@@ -260,6 +261,11 @@ func getKMMImageConfig(ctx context.Context, cl client.Client, namespace string) 
 	}
 
 	return config, nil
+}
+
+// Keep the old private function for backward compatibility
+func getKMMImageConfig(ctx context.Context, cl client.Client, namespace string) (KMMImageConfig, error) {
+	return GetKMMImageConfig(ctx, cl, namespace)
 }
 
 // getMergedRegistrySecret will return the merged secret (registry used for kmm and core images)
@@ -365,8 +371,8 @@ COPY --from=builder /usr/lpp/mmfs/bin/lxtrace-${KERNEL_FULL_VERSION} /opt/lxtrac
 	}
 }
 
-// getServiceAccountDockercfgSecretName fetches the Docker config secret name for a given service account
-func getServiceAccountDockercfgSecretName(ctx context.Context, cl client.Client, namespace, serviceAccountName string) (string, error) {
+// GetServiceAccountDockercfgSecretName fetches the Docker config secret name for a given service account
+func GetServiceAccountDockercfgSecretName(ctx context.Context, cl client.Client, namespace, serviceAccountName string) (string, error) {
 	// Define the secret name pattern based on the service account name
 	secretPattern := fmt.Sprintf("^%s-dockercfg-.*$", serviceAccountName)
 
@@ -388,4 +394,9 @@ func getServiceAccountDockercfgSecretName(ctx context.Context, cl client.Client,
 
 	// Return an error if no secret matches the pattern
 	return "", fmt.Errorf("no dockercfg secret found for service account %s in namespace %s", serviceAccountName, namespace)
+}
+
+// Keep the old private function for backward compatibility
+func getServiceAccountDockercfgSecretName(ctx context.Context, cl client.Client, namespace, serviceAccountName string) (string, error) {
+	return GetServiceAccountDockercfgSecretName(ctx, cl, namespace, serviceAccountName)
 }
