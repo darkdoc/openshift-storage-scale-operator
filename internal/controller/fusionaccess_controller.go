@@ -50,6 +50,12 @@ import (
 	"github.com/openshift-storage-scale/openshift-fusion-access-operator/internal/utils"
 )
 
+const (
+	resourceTypeConfigMap  = "configmap"
+	resourceTypeSecret     = "secret"
+	resourceTypePullSecret = "pullsecret"
+)
+
 type CanPullImageFunc func(ctx context.Context, client kubernetes.Interface, ns, image, pullSecret string) (bool, error)
 
 // FusionAccessReconciler reconciles a FusionAccess object
@@ -632,149 +638,97 @@ func getIbmManifest(fusionobj fusionv1alpha1.FusionAccessSpec) (string, error) {
 
 // isItOurPullSecret returns true for Create or changed Update events
 func isItOurPullSecret() builder.WatchesOption {
-	return builder.WithPredicates(predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			ns, err := utils.GetDeploymentNamespace()
-			if err != nil {
-				return false
-			}
-			newSecret, ok := e.Object.DeepCopyObject().(*corev1.Secret)
-			if !ok {
-				return false
-			}
-			return checkPullSecret(newSecret, ns)
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			ns, err := utils.GetDeploymentNamespace()
-			if err != nil {
-				return false
-			}
-			newSecret, ok := e.ObjectNew.DeepCopyObject().(*corev1.Secret)
-			if !ok {
-				return false
-			}
-			oldSecret, ok := e.ObjectOld.DeepCopyObject().(*corev1.Secret)
-			if !ok {
-				return true
-			}
-			if !checkPullSecret(newSecret, ns) {
-				return false
-			}
-			return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
-		},
-		DeleteFunc: func(_ event.DeleteEvent) bool {
-			return false
-		},
-		GenericFunc: func(_ event.GenericEvent) bool {
-			return false
-		},
-	})
-}
-
-func checkPullSecret(secret *corev1.Secret, ns string) bool {
-	if secret.Type != "Opaque" {
-		return false
-	}
-	if secret.Name != FUSIONPULLSECRETNAME {
-		return false
-	}
-	if secret.Namespace != ns {
-		return false
-	}
-	return true
+	return createResourcePredicate(resourceTypePullSecret)
 }
 
 // isItOurKMMConfigMap returns true for Create or changed Update events on the KMM config map
 func isItOurKMMConfigMap() builder.WatchesOption {
-	return builder.WithPredicates(predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			ns, err := utils.GetDeploymentNamespace()
-			if err != nil {
-				return false
-			}
-			newConfigMap, ok := e.Object.DeepCopyObject().(*corev1.ConfigMap)
-			if !ok {
-				return false
-			}
-			return checkKMMConfigMap(newConfigMap, ns)
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			ns, err := utils.GetDeploymentNamespace()
-			if err != nil {
-				return false
-			}
-			newConfigMap, ok := e.ObjectNew.DeepCopyObject().(*corev1.ConfigMap)
-			if !ok {
-				return false
-			}
-			oldConfigMap, ok := e.ObjectOld.DeepCopyObject().(*corev1.ConfigMap)
-			if !ok {
-				return true
-			}
-			if !checkKMMConfigMap(newConfigMap, ns) {
-				return false
-			}
-			return !reflect.DeepEqual(oldConfigMap.Data, newConfigMap.Data)
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			ns, err := utils.GetDeploymentNamespace()
-			if err != nil {
-				return false
-			}
-			deletedConfigMap, ok := e.Object.DeepCopyObject().(*corev1.ConfigMap)
-			if !ok {
-				return false
-			}
-			return checkKMMConfigMap(deletedConfigMap, ns)
-		},
-		GenericFunc: func(_ event.GenericEvent) bool {
-			return false
-		},
-	})
+	return createResourcePredicate(resourceTypeConfigMap)
 }
 
 // isItOurRegistrySecret returns true for Create or changed Update events on registry-related secrets
 func isItOurRegistrySecret() builder.WatchesOption {
+	return createResourcePredicate(resourceTypeSecret)
+}
+
+// checkResourceObject checks if a resource object should be watched based on its type
+func checkResourceObject(obj client.Object, ns, resourceType string) bool {
+	switch resourceType {
+	case resourceTypeConfigMap:
+		cm, ok := obj.(*corev1.ConfigMap)
+		if !ok {
+			return false
+		}
+		return checkKMMConfigMap(cm, ns)
+	case resourceTypeSecret:
+		secret, ok := obj.(*corev1.Secret)
+		if !ok {
+			return false
+		}
+		return checkRegistrySecret(secret, ns)
+	case resourceTypePullSecret:
+		secret, ok := obj.(*corev1.Secret)
+		if !ok {
+			return false
+		}
+		return checkPullSecret(secret, ns)
+	default:
+		return false
+	}
+}
+
+// compareResourceData compares the data of two resource objects
+func compareResourceData(oldObj, newObj client.Object, resourceType string) bool {
+	switch resourceType {
+	case resourceTypeConfigMap:
+		oldCM, okOld := oldObj.(*corev1.ConfigMap)
+		newCM, okNew := newObj.(*corev1.ConfigMap)
+		if !okOld || !okNew {
+			return true
+		}
+		return !reflect.DeepEqual(oldCM.Data, newCM.Data)
+	case resourceTypeSecret, resourceTypePullSecret:
+		oldSecret, okOld := oldObj.(*corev1.Secret)
+		newSecret, okNew := newObj.(*corev1.Secret)
+		if !okOld || !okNew {
+			return true
+		}
+		return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
+	default:
+		return true
+	}
+}
+
+// createResourcePredicate creates a generic predicate for watching resources
+func createResourcePredicate(resourceType string) builder.WatchesOption {
 	return builder.WithPredicates(predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
 			ns, err := utils.GetDeploymentNamespace()
 			if err != nil {
 				return false
 			}
-			newSecret, ok := e.Object.DeepCopyObject().(*corev1.Secret)
-			if !ok {
-				return false
-			}
-			return checkRegistrySecret(newSecret, ns)
+			return checkResourceObject(e.Object, ns, resourceType)
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			ns, err := utils.GetDeploymentNamespace()
 			if err != nil {
 				return false
 			}
-			newSecret, ok := e.ObjectNew.DeepCopyObject().(*corev1.Secret)
-			if !ok {
+			if !checkResourceObject(e.ObjectNew, ns, resourceType) {
 				return false
 			}
-			oldSecret, ok := e.ObjectOld.DeepCopyObject().(*corev1.Secret)
-			if !ok {
-				return true
-			}
-			if !checkRegistrySecret(newSecret, ns) {
-				return false
-			}
-			return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
+			return compareResourceData(e.ObjectOld, e.ObjectNew, resourceType)
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
+			// Pull secrets don't care about delete events
+			if resourceType == resourceTypePullSecret {
+				return false
+			}
 			ns, err := utils.GetDeploymentNamespace()
 			if err != nil {
 				return false
 			}
-			deletedSecret, ok := e.Object.DeepCopyObject().(*corev1.Secret)
-			if !ok {
-				return false
-			}
-			return checkRegistrySecret(deletedSecret, ns)
+			return checkResourceObject(e.Object, ns, resourceType)
 		},
 		GenericFunc: func(_ event.GenericEvent) bool {
 			return false
@@ -797,22 +751,35 @@ func checkRegistrySecret(secret *corev1.Secret, ns string) bool {
 		return false
 	}
 
-	// Always watch IBM entitlement secret
+	// Check if it's IBM entitlement secret with correct type
 	if secret.Name == IBMENTITLEMENTNAME {
-		return true
+		return secret.Type == corev1.SecretTypeDockerConfigJson
 	}
 
 	// Check if it's a builder dockercfg secret
-	builderSecretPattern := `^builder-dockercfg-.*$`
+	builderSecretPattern := `^builder-dockercfg-.*$` //nolint:gosec // This is a regex pattern, not a credential
 	matched, _ := regexp.MatchString(builderSecretPattern, secret.Name)
 	if matched {
-		return true
+		return secret.Type == corev1.SecretTypeDockercfg
 	}
 
 	// Note: We can't easily check for the registry secret from config here without
 	// making a client call, so we'll be conservative and watch more secrets than necessary.
 	// The selector function will filter them properly.
 	return secret.Type == corev1.SecretTypeDockerConfigJson || secret.Type == corev1.SecretTypeDockercfg
+}
+
+func checkPullSecret(secret *corev1.Secret, ns string) bool {
+	if secret.Type != "Opaque" {
+		return false
+	}
+	if secret.Name != FUSIONPULLSECRETNAME {
+		return false
+	}
+	if secret.Namespace != ns {
+		return false
+	}
+	return true
 }
 
 // func (r *FusionAccessReconciler) finalizeFusionAccess(reqLogger logr.Logger, sc *v1alpha1.FusionAccess) error {
