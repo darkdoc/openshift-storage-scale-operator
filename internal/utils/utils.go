@@ -38,6 +38,15 @@ const (
 	CheckPodPullInterval        = 2 * time.Second
 	CheckPodName                = "image-check-fusion-access"
 	CheckPodContainerName       = "check"
+
+	// Secret names used across the operator
+	IBMEntitlementSecretName = "ibm-entitlement-key" //nolint:gosec // This is a secret name, not a credential
+	FusionPullSecretName     = "fusion-pullsecret"   //nolint:gosec // This is a secret name, not a credential
+
+	// Resource type constants for watch predicates
+	ResourceTypeConfigMap  = "configmap"
+	ResourceTypeSecret     = "secret"
+	ResourceTypePullSecret = "pullsecret"
 )
 
 // Taken from https://www.ibm.com/docs/en/scalecontainernative/5.2.2?topic=planning-software-requirements

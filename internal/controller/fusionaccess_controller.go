@@ -20,8 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
-	"regexp"
 
 	mfc "github.com/manifestival/controller-runtime-client"
 	"github.com/manifestival/manifestival"
@@ -35,25 +33,17 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	fusionv1alpha1 "github.com/openshift-storage-scale/openshift-fusion-access-operator/api/v1alpha1"
 	"github.com/openshift-storage-scale/openshift-fusion-access-operator/internal/controller/console"
 	"github.com/openshift-storage-scale/openshift-fusion-access-operator/internal/controller/kernelmodule"
 	"github.com/openshift-storage-scale/openshift-fusion-access-operator/internal/controller/localvolumediscovery"
+	"github.com/openshift-storage-scale/openshift-fusion-access-operator/internal/controller/watch"
 	"github.com/openshift-storage-scale/openshift-fusion-access-operator/internal/utils"
-)
-
-const (
-	resourceTypeConfigMap  = "configmap"
-	resourceTypeSecret     = "secret"
-	resourceTypePullSecret = "pullsecret"
 )
 
 type CanPullImageFunc func(ctx context.Context, client kubernetes.Interface, ns, image, pullSecret string) (bool, error)
@@ -361,7 +351,7 @@ func (r *FusionAccessReconciler) Reconcile(
 	// We try and create the entitlement secrets only if we found the "fusion-pullsecret" in our namespace
 	// If we don't find it, we don't create the entitlement secrets and we keep going as a user might be
 	// patching the global pull secret
-	secret, err := getPullSecretContent(FUSIONPULLSECRETNAME, ns, ctx, r.fullClient)
+	secret, err := getPullSecretContent(utils.FusionPullSecretName, ns, ctx, r.fullClient)
 	if err != nil {
 		log.Log.Info(
 			"Pull secret not found, skipping entitlement secret creation, we will watch this secret",
@@ -448,17 +438,17 @@ func (r *FusionAccessReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.getRegistrySecretSelector),
-			isItOurRegistrySecret(),
+			watch.IsItOurRegistrySecret(),
 		).
 		Watches(
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.getKMMConfigmapSelector),
-			isItOurKMMConfigMap(),
+			watch.IsItOurKMMConfigMap(),
 		).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.getPullSecretSelector),
-			isItOurPullSecret(),
+			watch.IsItOurPullSecret(),
 		).
 		Complete(r)
 }
@@ -471,7 +461,7 @@ func (r *FusionAccessReconciler) getPullSecretSelector(
 	if err != nil {
 		return []reconcile.Request{}
 	}
-	if _, err := getPullSecretContent(FUSIONPULLSECRETNAME, ns, ctx, r.fullClient); err != nil {
+	if _, err := getPullSecretContent(utils.FusionPullSecretName, ns, ctx, r.fullClient); err != nil {
 		// The secret in the namespace is not there yet
 		return []reconcile.Request{}
 	}
@@ -554,7 +544,7 @@ func (r *FusionAccessReconciler) getRegistrySecretSelector(
 	isRelevantSecret := false
 
 	// First check if this is the IBM entitlement secret
-	if secret.Name == IBMENTITLEMENTNAME {
+	if secret.Name == utils.IBMEntitlementSecretName {
 		isRelevantSecret = true
 	} else {
 		// Check if this is a registry secret mentioned in the KMM config
@@ -606,7 +596,7 @@ func (r *FusionAccessReconciler) runPullImageCheck(ctx context.Context, ns strin
 		log.Log.Error(err, "Could not figure out test image", "testImage", testImage)
 		return err
 	}
-	ok, err := r.CanPullImage(ctx, r.fullClient, ns, testImage, IBMENTITLEMENTNAME)
+	ok, err := r.CanPullImage(ctx, r.fullClient, ns, testImage, utils.IBMEntitlementSecretName)
 	if ok {
 		log.Log.Info("Image pull test succeeded", "ns", ns, "testImage", testImage)
 	} else {
@@ -634,152 +624,6 @@ func getIbmManifest(fusionobj fusionv1alpha1.FusionAccessSpec) (string, error) {
 		return install_path, nil
 	}
 	return "", fmt.Errorf("no Storage Scale manifest version and no external manifest specified")
-}
-
-// isItOurPullSecret returns true for Create or changed Update events
-func isItOurPullSecret() builder.WatchesOption {
-	return createResourcePredicate(resourceTypePullSecret)
-}
-
-// isItOurKMMConfigMap returns true for Create or changed Update events on the KMM config map
-func isItOurKMMConfigMap() builder.WatchesOption {
-	return createResourcePredicate(resourceTypeConfigMap)
-}
-
-// isItOurRegistrySecret returns true for Create or changed Update events on registry-related secrets
-func isItOurRegistrySecret() builder.WatchesOption {
-	return createResourcePredicate(resourceTypeSecret)
-}
-
-// checkResourceObject checks if a resource object should be watched based on its type
-func checkResourceObject(obj client.Object, ns, resourceType string) bool {
-	switch resourceType {
-	case resourceTypeConfigMap:
-		cm, ok := obj.(*corev1.ConfigMap)
-		if !ok {
-			return false
-		}
-		return checkKMMConfigMap(cm, ns)
-	case resourceTypeSecret:
-		secret, ok := obj.(*corev1.Secret)
-		if !ok {
-			return false
-		}
-		return checkRegistrySecret(secret, ns)
-	case resourceTypePullSecret:
-		secret, ok := obj.(*corev1.Secret)
-		if !ok {
-			return false
-		}
-		return checkPullSecret(secret, ns)
-	default:
-		return false
-	}
-}
-
-// compareResourceData compares the data of two resource objects
-func compareResourceData(oldObj, newObj client.Object, resourceType string) bool {
-	switch resourceType {
-	case resourceTypeConfigMap:
-		oldCM, okOld := oldObj.(*corev1.ConfigMap)
-		newCM, okNew := newObj.(*corev1.ConfigMap)
-		if !okOld || !okNew {
-			return true
-		}
-		return !reflect.DeepEqual(oldCM.Data, newCM.Data)
-	case resourceTypeSecret, resourceTypePullSecret:
-		oldSecret, okOld := oldObj.(*corev1.Secret)
-		newSecret, okNew := newObj.(*corev1.Secret)
-		if !okOld || !okNew {
-			return true
-		}
-		return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
-	default:
-		return true
-	}
-}
-
-// createResourcePredicate creates a generic predicate for watching resources
-func createResourcePredicate(resourceType string) builder.WatchesOption {
-	return builder.WithPredicates(predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			ns, err := utils.GetDeploymentNamespace()
-			if err != nil {
-				return false
-			}
-			return checkResourceObject(e.Object, ns, resourceType)
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			ns, err := utils.GetDeploymentNamespace()
-			if err != nil {
-				return false
-			}
-			if !checkResourceObject(e.ObjectNew, ns, resourceType) {
-				return false
-			}
-			return compareResourceData(e.ObjectOld, e.ObjectNew, resourceType)
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			// Pull secrets don't care about delete events
-			if resourceType == resourceTypePullSecret {
-				return false
-			}
-			ns, err := utils.GetDeploymentNamespace()
-			if err != nil {
-				return false
-			}
-			return checkResourceObject(e.Object, ns, resourceType)
-		},
-		GenericFunc: func(_ event.GenericEvent) bool {
-			return false
-		},
-	})
-}
-
-func checkKMMConfigMap(cm *corev1.ConfigMap, ns string) bool {
-	if cm.Name != kernelmodule.KMMImageConfigMapName {
-		return false
-	}
-	if cm.Namespace != ns {
-		return false
-	}
-	return true
-}
-
-func checkRegistrySecret(secret *corev1.Secret, ns string) bool {
-	if secret.Namespace != ns {
-		return false
-	}
-
-	// Check if it's IBM entitlement secret with correct type
-	if secret.Name == IBMENTITLEMENTNAME {
-		return secret.Type == corev1.SecretTypeDockerConfigJson
-	}
-
-	// Check if it's a builder dockercfg secret
-	builderSecretPattern := `^builder-dockercfg-.*$` //nolint:gosec // This is a regex pattern, not a credential
-	matched, _ := regexp.MatchString(builderSecretPattern, secret.Name)
-	if matched {
-		return secret.Type == corev1.SecretTypeDockercfg
-	}
-
-	// Note: We can't easily check for the registry secret from config here without
-	// making a client call, so we'll be conservative and watch more secrets than necessary.
-	// The selector function will filter them properly.
-	return secret.Type == corev1.SecretTypeDockerConfigJson || secret.Type == corev1.SecretTypeDockercfg
-}
-
-func checkPullSecret(secret *corev1.Secret, ns string) bool {
-	if secret.Type != "Opaque" {
-		return false
-	}
-	if secret.Name != FUSIONPULLSECRETNAME {
-		return false
-	}
-	if secret.Namespace != ns {
-		return false
-	}
-	return true
 }
 
 // func (r *FusionAccessReconciler) finalizeFusionAccess(reqLogger logr.Logger, sc *v1alpha1.FusionAccess) error {

@@ -36,6 +36,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	fusionv1alpha "github.com/openshift-storage-scale/openshift-fusion-access-operator/api/v1alpha1"
+	"github.com/openshift-storage-scale/openshift-fusion-access-operator/internal/controller/watch"
+	"github.com/openshift-storage-scale/openshift-fusion-access-operator/internal/utils"
 )
 
 const (
@@ -167,57 +169,58 @@ var _ = Describe("FusionAccessReconciler Setup", func() {
 })
 
 var _ = Describe("checkPullSecret", func() {
-	const (
-		expectedName      = "fusion-pullsecret"
-		expectedNamespace = "default"
-	)
+	const expectedNamespace = "test-namespace"
 
-	It("returns true for a valid pull secret", func() {
-		secret := &corev1.Secret{
-			Type: corev1.SecretTypeOpaque,
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      expectedName,
-				Namespace: expectedNamespace,
-			},
-		}
-
-		Expect(checkPullSecret(secret, expectedNamespace)).To(BeTrue())
+	BeforeEach(func() {
+		os.Setenv("DEPLOYMENT_NAMESPACE", expectedNamespace)
 	})
 
-	It("returns false if secret type is incorrect", func() {
-		secret := &corev1.Secret{
-			Type: corev1.SecretTypeDockercfg,
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      expectedName,
-				Namespace: expectedNamespace,
-			},
-		}
-
-		Expect(checkPullSecret(secret, expectedNamespace)).To(BeFalse())
+	AfterEach(func() {
+		os.Unsetenv("DEPLOYMENT_NAMESPACE")
 	})
 
-	It("returns false if secret name is incorrect", func() {
+	It("should return true for fusion-pullsecret in the expected namespace", func() {
 		secret := &corev1.Secret{
-			Type: corev1.SecretTypeOpaque,
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "wrong-name",
+				Name:      utils.FusionPullSecretName,
 				Namespace: expectedNamespace,
 			},
+			Type: corev1.SecretTypeOpaque,
 		}
-
-		Expect(checkPullSecret(secret, expectedNamespace)).To(BeFalse())
+		Expect(watch.CheckPullSecret(secret, expectedNamespace)).To(BeTrue())
 	})
 
-	It("returns false if secret namespace is incorrect", func() {
+	It("should return false for fusion-pullsecret in a different namespace", func() {
 		secret := &corev1.Secret{
-			Type: corev1.SecretTypeOpaque,
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      expectedName,
-				Namespace: "other-namespace",
+				Name:      utils.FusionPullSecretName,
+				Namespace: "different-namespace",
 			},
+			Type: corev1.SecretTypeOpaque,
 		}
+		Expect(watch.CheckPullSecret(secret, expectedNamespace)).To(BeFalse())
+	})
 
-		Expect(checkPullSecret(secret, expectedNamespace)).To(BeFalse())
+	It("should return false for fusion-pullsecret with wrong type", func() {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      utils.FusionPullSecretName,
+				Namespace: expectedNamespace,
+			},
+			Type: corev1.SecretTypeDockerConfigJson,
+		}
+		Expect(watch.CheckPullSecret(secret, expectedNamespace)).To(BeFalse())
+	})
+
+	It("should return false for wrong secret name", func() {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "wrong-secret",
+				Namespace: expectedNamespace,
+			},
+			Type: corev1.SecretTypeOpaque,
+		}
+		Expect(watch.CheckPullSecret(secret, expectedNamespace)).To(BeFalse())
 	})
 })
 

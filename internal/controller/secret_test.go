@@ -11,6 +11,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/openshift-storage-scale/openshift-fusion-access-operator/internal/utils"
 )
 
 const TESTNAMESPACE = "test-namespace"
@@ -80,7 +82,7 @@ var _ = Describe("FusionAccess Utilities", func() {
 
 		It("should return secret content if valid", func() {
 			data := map[string][]byte{
-				IBMENTITLEMENTNAME: []byte("my-secret-data"),
+				utils.IBMEntitlementSecretName: []byte("my-secret-data"),
 			}
 			secret := newSecret(secretName, "default", data, corev1.SecretTypeOpaque, nil)
 			_, _ = clientset.CoreV1().Secrets("default").Create(ctx, secret, metav1.CreateOptions{})
@@ -103,7 +105,7 @@ var _ = Describe("FusionAccess Utilities", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			for _, ns := range IbmEntitlementSecrets(TESTNAMESPACE) {
-				sec, err := clientset.CoreV1().Secrets(ns).Get(ctx, IBMENTITLEMENTNAME, metav1.GetOptions{})
+				sec, err := clientset.CoreV1().Secrets(ns).Get(ctx, utils.IBMEntitlementSecretName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				dockerConfigJSON, err := getDockerConfigSecretJSON(secretData)
 				Expect(err).ToNot(HaveOccurred())
@@ -114,7 +116,7 @@ var _ = Describe("FusionAccess Utilities", func() {
 		It("updates existing secrets", func() {
 			// Create dummy existing secrets with wrong data
 			for _, ns := range IbmEntitlementSecrets(TESTNAMESPACE) {
-				dummy := newSecret(IBMENTITLEMENTNAME, ns, map[string][]byte{
+				dummy := newSecret(utils.IBMEntitlementSecretName, ns, map[string][]byte{
 					".dockerconfigjson": []byte("old-data"),
 				}, corev1.SecretTypeDockerConfigJson, nil)
 				_, err := clientset.CoreV1().Secrets(ns).Create(ctx, dummy, metav1.CreateOptions{})
@@ -125,7 +127,7 @@ var _ = Describe("FusionAccess Utilities", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			for _, ns := range IbmEntitlementSecrets(TESTNAMESPACE) {
-				sec, err := clientset.CoreV1().Secrets(ns).Get(ctx, IBMENTITLEMENTNAME, metav1.GetOptions{})
+				sec, err := clientset.CoreV1().Secrets(ns).Get(ctx, utils.IBMEntitlementSecretName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				dockerConfigJSON, err := getDockerConfigSecretJSON(secretData)
 				Expect(err).ToNot(HaveOccurred())

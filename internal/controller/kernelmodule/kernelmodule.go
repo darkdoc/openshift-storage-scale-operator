@@ -271,8 +271,8 @@ func getKMMImageConfig(ctx context.Context, cl client.Client, namespace string) 
 // getMergedRegistrySecret will return the merged secret (registry used for kmm and core images)
 func getMergedRegistrySecret(ctx context.Context, cl client.Client, namespace string, kmmImageConfig *KMMImageConfig) (*corev1.Secret, error) {
 	ibmPullSecret := &corev1.Secret{}
-	if err := cl.Get(ctx, types.NamespacedName{Namespace: namespace, Name: IBMENTITLEMENTNAME}, ibmPullSecret); err != nil {
-		return nil, fmt.Errorf("failed to get ibmPullSecret pull secret %s in getMergedRegistrySecret: %w", IBMENTITLEMENTNAME, err)
+	if err := cl.Get(ctx, types.NamespacedName{Namespace: namespace, Name: utils.IBMEntitlementSecretName}, ibmPullSecret); err != nil {
+		return nil, fmt.Errorf("failed to get ibmPullSecret pull secret %s in getMergedRegistrySecret: %w", utils.IBMEntitlementSecretName, err)
 	}
 	registrySecret := &corev1.Secret{}
 	if kmmImageConfig.RegistrySecretName != "" {

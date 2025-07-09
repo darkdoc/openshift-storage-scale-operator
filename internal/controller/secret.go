@@ -16,7 +16,6 @@ import (
 
 const FUSIONPULLSECRETNAME = "fusion-pullsecret"            //nolint:gosec
 const EXTRAFUSIONPULLSECRETNAME = "fusion-pullsecret-extra" //nolint:gosec
-const IBMENTITLEMENTNAME = "ibm-entitlement-key"
 const IBMREGISTRY = "cp.icr.io"
 const IBMREGISTRYUSER = "cp"
 
@@ -56,9 +55,9 @@ func getPullSecretContent(name, namespace string, ctx context.Context, full kube
 	if secret.Data == nil {
 		return nil, fmt.Errorf("secret %s has no data", name)
 	}
-	secData, ok := secret.Data[IBMENTITLEMENTNAME]
+	secData, ok := secret.Data[utils.IBMEntitlementSecretName]
 	if !ok {
-		return nil, fmt.Errorf("secret %s does not contain %s", name, IBMENTITLEMENTNAME)
+		return nil, fmt.Errorf("secret %s does not contain %s", name, utils.IBMEntitlementSecretName)
 	}
 	return secData, nil
 }
@@ -89,7 +88,7 @@ func updateEntitlementPullSecrets(secret []byte, ctx context.Context, full kuber
 	secretData := map[string][]byte{
 		".dockerconfigjson": secretJson,
 	}
-	destSecretName := IBMENTITLEMENTNAME //nolint:gosec
+	destSecretName := utils.IBMEntitlementSecretName //nolint:gosec
 
 	extraPullSecret, err := full.CoreV1().Secrets(ns).Get(ctx, EXTRAFUSIONPULLSECRETNAME, metav1.GetOptions{})
 	if err != nil {
